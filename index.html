@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>勤怠報告</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1D9E75">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="勤怠報告">
+<style>
+  :root{
+    --primary:#1D9E75;
+    --primary-dark:#0F6E56;
+    --bg:#F5F5F3;
+    --card:#FFFFFF;
+    --text:#222220;
+    --text-sub:#6B6A66;
+    --border:#E3E1DC;
+    --warn:#EF9F27;
+    --danger:#E24B4A;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+  body{
+    margin:0; font-family:-apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+    background:var(--bg); color:var(--text);
+    padding-bottom: 80px;
+  }
+  header{
+    background:var(--primary); color:#fff; padding:16px 20px;
+    position:sticky; top:0; z-index:10;
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  header h1{margin:0; font-size:18px; font-weight:500;}
+  .container{padding:16px; max-width:480px; margin:0 auto;}
+  .card{
+    background:var(--card); border-radius:14px; border:1px solid var(--border);
+    padding:16px; margin-bottom:16px;
+  }
+  label{font-size:13px; color:var(--text-sub); display:block; margin-bottom:6px;}
+  input[type="text"]{
+    width:100%; padding:12px; border-radius:10px; border:1px solid var(--border);
+    font-size:16px; background:#fafaf9; color:var(--text);
+  }
+  input[type="text"]:focus{outline:2px solid var(--primary); border-color:var(--primary);}
+  .row-between{display:flex; justify-content:space-between; align-items:baseline; margin:12px 0;}
+  .today-date{font-size:15px; font-weight:500;}
+  .btn-grid{display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:16px;}
+  .action-btn{
+    display:flex; flex-direction:column; align-items:center; gap:8px;
+    padding:20px 0; border-radius:12px; border:none; font-size:16px; font-weight:500;
+    color:#fff; cursor:pointer; transition:transform .1s;
+  }
+  .action-btn:active{transform:scale(0.97);}
+  .btn-in{background:var(--primary);}
+  .btn-out{background:var(--text-sub);}
+  .icon{font-size:28px; line-height:1;}
+  #status-msg{font-size:13px; min-height:18px; margin-top:12px; text-align:center;}
+  .status-ok{color:var(--primary-dark);}
+  .status-err{color:var(--danger);}
+
+  .section-title{font-size:13px; color:var(--text-sub); margin:0 0 10px;}
+  .record-item{
+    display:flex; align-items:center; gap:12px; background:#fafaf9;
+    border-radius:10px; padding:10px 12px; margin-bottom:8px; border:1px solid var(--border);
+  }
+  .record-icon{font-size:20px;}
+  .record-item .rtext{flex:1;}
+  .record-item .rtitle{margin:0; font-size:14px; font-weight:500;}
+  .record-item .rsite{margin:0; font-size:12px; color:var(--text-sub);}
+  .empty{font-size:13px; color:#aaa; text-align:center; padding:8px 0;}
+
+  /* Tab bar */
+  .tabbar{
+    position:fixed; bottom:0; left:0; right:0; background:var(--card);
+    border-top:1px solid var(--border); display:flex; z-index:10;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .tab-btn{
+    flex:1; border:none; background:none; padding:10px 0 8px; font-size:12px;
+    color:var(--text-sub); display:flex; flex-direction:column; align-items:center; gap:4px;
+  }
+  .tab-btn.active{color:var(--primary);}
+  .tab-btn .icon{font-size:22px;}
+
+  /* Calendar */
+  .cal-header{display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;}
+  .cal-header button{
+    background:none; border:1px solid var(--border); border-radius:8px;
+    width:36px; height:36px; font-size:18px; color:var(--text);
+  }
+  .cal-month{font-size:16px; font-weight:500;}
+  .cal-grid{display:grid; grid-template-columns:repeat(7,1fr); gap:4px; text-align:center; font-size:13px;}
+  .cal-dow{color:var(--text-sub); padding:6px 0; font-size:12px;}
+  .cal-day{
+    padding:8px 0; border-radius:8px; cursor:pointer; position:relative;
+    border:1px solid transparent;
+  }
+  .cal-day.today{border-color:var(--primary);}
+  .cal-day.done{background:#E1F5EE; color:#085041;}
+  .cal-day.partial{background:#FAEEDA; color:#633806;}
+  .cal-day.empty-day{visibility:hidden;}
+  .day-detail{margin-top:16px;}
+  .day-detail-title{font-size:14px; font-weight:500; margin:0 0 8px;}
+
+  /* legend */
+  .legend{display:flex; gap:16px; font-size:12px; color:var(--text-sub); margin-top:12px; flex-wrap:wrap;}
+  .legend span{display:inline-flex; align-items:center; gap:6px;}
+  .dot{width:10px; height:10px; border-radius:3px; display:inline-block;}
+  .dot-done{background:#9FE1CB;}
+  .dot-partial{background:#FAC775;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>勤怠報告</h1>
+  <span id="header-date" style="font-size:12px; opacity:0.9;"></span>
+</header>
+
+<div class="container">
+
+  <!-- 記録画面 -->
+  <div id="view-record">
+    <div class="card">
+      <label for="worker-name">お名前（必須）</label>
+      <input type="text" id="worker-name" placeholder="例：山田太郎" autocomplete="off" style="margin-bottom:10px;">
+
+      <label for="site-name">現場名（必須）</label>
+      <input type="text" id="site-name" placeholder="例：名古屋市中区〇〇マンション" autocomplete="off">
+
+      <div class="row-between">
+        <span style="font-size:13px; color:var(--text-sub);">今日</span>
+        <span class="today-date" id="today-display"></span>
+      </div>
+
+      <div class="btn-grid">
+        <button class="action-btn btn-in" id="btn-checkin">
+          <span class="icon">↗</span>
+          出社
+        </button>
+        <button class="action-btn btn-out" id="btn-checkout">
+          <span class="icon">↘</span>
+          退社
+        </button>
+      </div>
+      <div id="status-msg"></div>
+    </div>
+
+    <div class="card">
+      <p class="section-title">本日の記録</p>
+      <div id="today-records"></div>
+    </div>
+  </div>
+
+  <!-- カレンダー画面 -->
+  <div id="view-calendar" style="display:none;">
+    <div class="card">
+      <div class="cal-header">
+        <button id="prev-month">‹</button>
+        <span class="cal-month" id="month-label"></span>
+        <button id="next-month">›</button>
+      </div>
+      <div class="cal-grid" id="cal-grid"></div>
+      <div class="legend">
+        <span><i class="dot dot-done"></i>出社・退社済み</span>
+        <span><i class="dot dot-partial"></i>出社のみ</span>
+      </div>
+      <div class="day-detail" id="day-detail"></div>
+    </div>
+  </div>
+
+  <!-- 履歴一覧 -->
+  <div id="view-history" style="display:none;">
+    <div class="card">
+      <p class="section-title">全履歴（新しい順）</p>
+      <div id="history-list"></div>
+    </div>
+  </div>
+
+</div>
+
+<nav class="tabbar">
+  <button class="tab-btn active" data-tab="record">
+    <span class="icon">⏱</span>記録
+  </button>
+  <button class="tab-btn" data-tab="calendar">
+    <span class="icon">📅</span>カレンダー
+  </button>
+  <button class="tab-btn" data-tab="history">
+    <span class="icon">📋</span>履歴
+  </button>
+</nav>
+
+<script src="app.js"></script>
+<script>
+if('serviceWorker' in navigator){
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  });
+}
+</script>
+</body>
+</html>
