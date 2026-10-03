@@ -102,10 +102,12 @@ async function fetchMine(name, date) {
   return getJson({ name, date });
 }
 
+// 保存して、Google側の時計で確定した日付・時刻を返す
 async function sendStamp(rec) {
-  if (DEMO) { demoData = demoData || makeDemoData(); demoData.push(rec); return; }
+  if (DEMO) { demoData = demoData || makeDemoData(); demoData.push(rec); return rec; }
   const data = await postJson(rec);
   if (!data.ok) { const err = new Error(data.error || '保存できませんでした'); err.data = data; throw err; }
+  return { date: data.date || rec.date, time: data.time || rec.time };
 }
 
 // ---------- 打刻画面 ----------
@@ -123,17 +125,25 @@ function showStampScreen() {
   else $('name-input').focus();
 }
 
-let todayState = { inT: null, outT: null };
+let todayState = { inT: null, outT: null, inYest: false };
 async function refreshToday() {
   const name = lsGet(NAME_KEY);
-  const today = fmtDate(new Date());
+  const now = new Date();
+  const today = fmtDate(now);
   try {
     const recs = await fetchMine(name, today);
     const ins = recs.filter((r) => r.type === 'in').map((r) => r.time).sort();
     const outs = recs.filter((r) => r.type === 'out').map((r) => r.time).sort();
-    todayState = { inT: ins[0] || null, outT: outs[outs.length - 1] || null };
+    todayState = { inT: ins[0] || null, outT: outs[outs.length - 1] || null, inYest: false };
+    // 夜勤：今日まだ出勤していなくて、昨日「出勤したまま退勤していない」なら、それを続きとして扱う
+    if (!todayState.inT && now.getHours() < 12) {
+      const yest = await fetchMine(name, fmtDate(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1)));
+      const yIn = yest.filter((r) => r.type === 'in').map((r) => r.time).sort()[0];
+      const yOut = yest.some((r) => r.type === 'out');
+      if (yIn && !yOut) todayState = { inT: yIn, outT: todayState.outT, inYest: true };
+    }
   } catch (e) { /* 読めなくても打刻はできる */ }
-  $('ts-in-val').textContent = todayState.inT || '--:--';
+  $('ts-in-val').textContent = todayState.inT ? (todayState.inYest ? '昨日 ' : '') + todayState.inT : '--:--';
   $('ts-out-val').textContent = todayState.outT || '--:--';
   $('ts-in').className = 'ts-box' + (todayState.inT ? ' done-in' : '');
   $('ts-out').className = 'ts-box' + (todayState.outT ? ' done-out' : '');
@@ -154,7 +164,7 @@ function showGpsHelp(html) {
 async function stamp(type) {
   const name = lsGet(NAME_KEY);
   const label = type === 'in' ? '出勤' : '退勤';
-  if (type === 'in' && todayState.inT && !confirm('今日はもう ' + todayState.inT + ' に出勤しています。\nもう一度、出勤を記録しますか？')) return;
+  if (type === 'in' && todayState.inT && !todayState.inYest && !confirm('今日はもう ' + todayState.inT + ' に出勤しています。\nもう一度、出勤を記録しますか？')) return;
   if (type === 'out' && !todayState.inT && !confirm('今日の出勤が記録されていません。\n退勤だけ記録しますか？')) return;
 
   const now = new Date();
@@ -169,9 +179,10 @@ async function stamp(type) {
       }
     }
     setGpsMsg('');
-    await sendStamp(rec);
-    if (type === 'in') todayState.inT = todayState.inT || rec.time; else todayState.outT = rec.time;
-    toast(label + 'しました（' + rec.time + '）' + (type === 'out' ? ' おつかれさまでした' : ''));
+    const saved = await sendStamp(rec);
+    if (type === 'in') todayState = { inT: todayState.inYest ? saved.time : (todayState.inT || saved.time), inYest: false, outT: todayState.outT };
+    else todayState.outT = saved.time;
+    toast(label + 'しました（' + saved.time + '）' + (type === 'out' ? ' おつかれさまでした' : ''));
     if (navigator.vibrate) navigator.vibrate(60);
   } catch (e) {
     setGpsMsg('');
@@ -197,21 +208,37 @@ function summarize(recs, name, monthDate) {
   const y = monthDate.getFullYear(), m = monthDate.getMonth();
   const days = new Date(y, m + 1, 0).getDate();
   const today = fmtDate(new Date());
-  const mine = recs.filter((r) => r.name === name);
+  const byDate = {};
+  recs.filter((r) => r.name === name).forEach((r) => {
+    const o = byDate[r.date] || (byDate[r.date] = { ins: [], outs: [] });
+    o[r.type === 'in' ? 'ins' : 'outs'].push(r.time);
+  });
+  Object.values(byDate).forEach((o) => { o.ins.sort(); o.outs.sort(); });
   const rows = [];
   let workDays = 0, totalWork = 0, totalOt = 0, missing = 0;
+  let usedNextOut = null; // 前日の夜勤の退勤として使った翌日の退勤時刻
 
   for (let d = 1; d <= days; d++) {
     const date = y + '-' + pad(m + 1) + '-' + pad(d);
     const dow = new Date(y, m, d).getDay();
-    const dayR = mine.filter((r) => r.date === date);
-    const ins = dayR.filter((r) => r.type === 'in').map((r) => r.time).sort();
-    const outs = dayR.filter((r) => r.type === 'out').map((r) => r.time).sort();
-    const inT = ins[0] || null, outT = outs[outs.length - 1] || null;
+    const o = byDate[date] || { ins: [], outs: [] };
+    const outs = o.outs.filter((t) => t !== usedNextOut);
+    usedNextOut = null;
+    const inT = o.ins[0] || null;
+    let outT = outs[outs.length - 1] || null, overnight = false;
+    // 夜勤：出勤だけで退勤がなく、翌日の昼前に（その日の出勤より先に）退勤がある → 日をまたいだ勤務
+    if (inT && !outT) {
+      const nd = new Date(y, m, d + 1);
+      const n = byDate[fmtDate(nd)];
+      const firstOut = n && n.outs[0];
+      if (firstOut && toMin(firstOut) < 12 * 60 && (!n.ins.length || firstOut < n.ins[0])) {
+        outT = firstOut; overnight = true; usedNextOut = firstOut;
+      }
+    }
     let work = null, ot = null, miss = false;
     if (inT || outT) workDays++;
-    if (inT && outT && toMin(outT) > toMin(inT)) {
-      const span = toMin(outT) - toMin(inT);
+    const span = inT && outT ? (overnight ? 24 * 60 : 0) + toMin(outT) - toMin(inT) : 0;
+    if (span > 0) {
       const brk = span >= settings.breakOver * 60 ? settings.breakMin : 0;
       work = Math.max(0, span - brk);
       ot = Math.max(0, work - Math.round(settings.std * 60));
@@ -219,7 +246,7 @@ function summarize(recs, name, monthDate) {
     } else if ((inT || outT) && date !== today) {
       miss = true; missing++;
     }
-    rows.push({ d, dow, date, inT, outT, work, ot, miss });
+    rows.push({ d, dow, date, inT, outT: outT && overnight ? '翌' + outT : outT, work, ot, miss });
   }
   return { name, rows, workDays, totalWork, totalOt, missing };
 }
@@ -280,13 +307,17 @@ function renderReport() {
 }
 
 async function loadReport() {
+  const seq = loadReport.seq = (loadReport.seq || 0) + 1; // 月を連打しても最後の月だけ表示する
   $('m-label').textContent = reportMonth.getFullYear() + '年' + (reportMonth.getMonth() + 1) + '月';
   $('report-body').innerHTML = '<p class="loading">読み込み中…</p>';
   try {
-    monthRecords = await fetchMonth(monthKey(reportMonth));
+    const recs = await fetchMonth(monthKey(reportMonth));
+    if (seq !== loadReport.seq) return;
+    monthRecords = recs;
     renderReport();
     loadOffice();
   } catch (e) {
+    if (seq !== loadReport.seq) return;
     $('report-body').innerHTML = '<div class="card"><p class="loading">' +
       (e.message === 'old-server' ? 'スプレッドシート側の更新がまだです（設定手順をご確認ください）' : '読み込めませんでした。電波を確認してください') + '</p></div>';
   }
