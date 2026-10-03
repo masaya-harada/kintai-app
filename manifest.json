@@ -1,8 +1,10 @@
 {
+  "id": "kintai-2026",
   "name": "勤怠",
   "short_name": "勤怠",
   "description": "スマホで出勤・退勤を押すだけの勤怠アプリ",
-  "start_url": "./index.html",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#F5F5F3",
   "theme_color": "#1D9E75",
@@ -12,13 +14,19 @@
       "src": "icons/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }
