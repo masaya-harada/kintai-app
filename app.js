@@ -60,7 +60,28 @@ async function getJson(params) {
   const data = await res.json().catch(() => null);
   if (!data) throw new Error('old-server');
   if (!data.ok) throw new Error(data.error || 'error');
+  getJson.last = data;
   return data.records;
+}
+
+async function postJson(body) {
+  // text/plain で送るとGoogle側と問題なくやりとりできる
+  const res = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify(body), headers: { 'Content-Type': 'text/plain;charset=utf-8' } });
+  const data = await res.json().catch(() => null);
+  if (!data) throw new Error('保存できませんでした');
+  return data;
+}
+
+// 今いる場所（GPS）を取る
+function getPosition() {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) return reject(new Error('nogeo'));
+    navigator.geolocation.getCurrentPosition(
+      (p) => resolve({ lat: +p.coords.latitude.toFixed(6), lng: +p.coords.longitude.toFixed(6), acc: Math.round(p.coords.accuracy) }),
+      (err) => reject(new Error(err.code === 1 ? 'denied' : 'nogeo')),
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 30000 }
+    );
+  });
 }
 
 // 集計用：その月の全員分（暗証番号が必要）
@@ -83,10 +104,8 @@ async function fetchMine(name, date) {
 
 async function sendStamp(rec) {
   if (DEMO) { demoData = demoData || makeDemoData(); demoData.push(rec); return; }
-  // text/plain で送るとGoogle側と問題なくやりとりできる
-  const res = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify(rec), headers: { 'Content-Type': 'text/plain;charset=utf-8' } });
-  const data = await res.json().catch(() => null);
-  if (!data || !data.ok) throw new Error((data && data.error) || '保存できませんでした');
+  const data = await postJson(rec);
+  if (!data.ok) { const err = new Error(data.error || '保存できませんでした'); err.data = data; throw err; }
 }
 
 // ---------- 打刻画面 ----------
@@ -120,6 +139,18 @@ async function refreshToday() {
   $('ts-out').className = 'ts-box' + (todayState.outT ? ' done-out' : '');
 }
 
+function setGpsMsg(text) {
+  const el = $('gps-msg');
+  el.className = 'gps-msg' + (text ? ' show' : '');
+  el.textContent = text;
+}
+function showGpsHelp(html) {
+  const el = $('gps-msg');
+  el.className = 'gps-msg show err';
+  el.innerHTML = html;
+  if (navigator.vibrate) navigator.vibrate([80, 60, 80]);
+}
+
 async function stamp(type) {
   const name = lsGet(NAME_KEY);
   const label = type === 'in' ? '出勤' : '退勤';
@@ -129,13 +160,33 @@ async function stamp(type) {
   const now = new Date();
   const rec = { date: fmtDate(now), time: fmtTime(now), name, type };
   $('btn-in').disabled = $('btn-out').disabled = true;
+  setGpsMsg('📍 場所を確認しています…');
   try {
+    if (!DEMO) {
+      try { Object.assign(rec, await getPosition()); }
+      catch (e) {
+        throw new Error(e.message === 'denied' ? 'denied' : 'nogps');
+      }
+    }
+    setGpsMsg('');
     await sendStamp(rec);
     if (type === 'in') todayState.inT = todayState.inT || rec.time; else todayState.outT = rec.time;
     toast(label + 'しました（' + rec.time + '）' + (type === 'out' ? ' おつかれさまでした' : ''));
     if (navigator.vibrate) navigator.vibrate(60);
   } catch (e) {
-    toast('記録できませんでした。電波のよい所でもう一度押してください', true);
+    setGpsMsg('');
+    if (e.message === 'far') {
+      const d = e.data.distance;
+      showGpsHelp('会社から約 ' + (d >= 1000 ? (d / 1000).toFixed(1) + 'km' : d + 'm') + ' 離れています。<br>会社の近く（' + e.data.radius + 'm以内）で押してください。');
+    } else if (e.message === 'denied') {
+      showGpsHelp('位置情報が「許可しない」になっています。<br>' +
+        '<b>iPhone</b>：設定 → プライバシーとセキュリティ → 位置情報サービス → Safari（またはChrome）→「使用中のみ」<br>' +
+        '<b>Android</b>：アドレスバー左の鍵マーク → 権限 → 位置情報 →「許可」<br>そのあと、もう一度押してください。');
+    } else if (e.message === 'nogps') {
+      showGpsHelp('場所がわかりませんでした。スマホの位置情報をオンにして、もう一度押してください。');
+    } else {
+      toast('記録できませんでした。電波のよい所でもう一度押してください', true);
+    }
   }
   $('btn-in').disabled = $('btn-out').disabled = false;
   refreshToday();
@@ -235,6 +286,7 @@ async function loadReport() {
   try {
     monthRecords = await fetchMonth(monthKey(reportMonth));
     renderReport();
+    loadOffice();
   } catch (e) {
     if (e.message === 'pin') { lsSet(PIN_KEY, ''); return showPinForm(true); }
     $('report-body').innerHTML = '<div class="card"><p class="loading">' +
@@ -245,6 +297,7 @@ async function loadReport() {
 // 暗証番号の入力（一度入れれば、その端末では次から聞かれない）
 function showPinForm(wrong) {
   monthRecords = [];
+  $('office-card').style.display = 'none';
   $('person-select').innerHTML = '<option value="">全員</option>';
   $('report-body').innerHTML = '<div class="card">' +
     '<p style="margin:0 0 6px; font-size:16px; font-weight:600;">暗証番号を入れてください</p>' +
@@ -261,6 +314,52 @@ function showPinForm(wrong) {
   $('pin-ok').addEventListener('click', go);
   $('pin-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
   $('pin-input').focus();
+}
+
+// ---------- 会社の場所（管理者だけ） ----------
+function showOffice(o) {
+  $('office-card').style.display = 'block';
+  if (o) {
+    $('office-status').innerHTML = '登録済み：会社から <b>' + o.radius + 'm</b> 以内でだけ押せます。' +
+      '<a href="https://www.google.com/maps?q=' + o.lat + ',' + o.lng + '" target="_blank" rel="noopener">地図で確認</a>';
+    $('office-radius').value = o.radius;
+  } else {
+    $('office-status').innerHTML = '<span style="color:var(--danger);">まだ登録されていません。</span>今はどこからでも押せます。';
+    if (!$('office-radius').value) $('office-radius').value = 300;
+  }
+}
+
+async function loadOffice() {
+  if (DEMO) return showOffice(null);
+  try {
+    await getJson({ pin: lsGet(PIN_KEY) || '', action: 'office' });
+    showOffice(getJson.last.office);
+  } catch (e) {}
+}
+
+async function saveOffice(withPlace) {
+  const radius = Math.round(parseFloat($('office-radius').value) || 300);
+  const body = { action: 'setOffice', pin: lsGet(PIN_KEY) || '', radius };
+  const btn = withPlace ? $('office-set') : $('office-radius-save');
+  btn.disabled = true;
+  try {
+    if (withPlace) {
+      if (!confirm('今いる場所を「会社」として登録します。\n会社にいますか？')) return;
+      $('office-status').textContent = '📍 場所を確認しています…';
+      const pos = await getPosition();
+      body.lat = pos.lat; body.lng = pos.lng;
+    }
+    if (DEMO) { toast('お試し表示では保存されません'); return; }
+    const data = await postJson(body);
+    if (!data.ok) throw new Error(data.error);
+    showOffice(data.office);
+    toast(withPlace ? '会社の場所を登録しました' : '範囲を保存しました');
+  } catch (e) {
+    toast(e.message === 'denied' ? '位置情報を「許可」にしてください' : e.message === 'nogeo' ? '場所がわかりませんでした。もう一度押してください' : '保存できませんでした', true);
+    loadOffice();
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 function downloadCsv() {
@@ -321,6 +420,8 @@ $('m-next').addEventListener('click', () => { reportMonth = new Date(reportMonth
 $('person-select').addEventListener('change', renderReport);
 $('btn-pdf').addEventListener('click', () => window.print());
 $('btn-csv').addEventListener('click', downloadCsv);
+$('office-set').addEventListener('click', () => saveOffice(true));
+$('office-radius-save').addEventListener('click', () => saveOffice(false));
 ['set-std', 'set-break', 'set-break-over'].forEach((id) => $(id).addEventListener('change', saveSettings));
 
 if (DEMO) { $('demo-badge').style.display = 'inline-block'; if (!lsGet(NAME_KEY)) lsSet(NAME_KEY, '山田 太郎'); }

@@ -64,6 +64,11 @@
   .name-input:focus{outline:2px solid var(--primary); border-color:var(--primary);}
   .primary-btn{width:100%; margin-top:12px; border:none; border-radius:12px; background:var(--primary); color:#fff; font-size:17px; font-weight:600; padding:14px;}
 
+  .gps-msg{display:none; margin-top:14px; border-radius:12px; padding:12px; font-size:14px; line-height:1.6; background:var(--bg); color:var(--sub); text-align:center;}
+  .gps-msg.show{display:block;}
+  .gps-msg.err{background:var(--danger-soft); color:var(--danger); text-align:left;}
+  .sub-btn{width:100%; margin-top:10px; border:1px solid var(--line); background:#fff; border-radius:12px; padding:11px; font-size:15px; font-weight:600; color:var(--text);}
+
   #toast{
     position:fixed; left:50%; bottom:calc(92px + env(safe-area-inset-bottom)); transform:translateX(-50%) translateY(20px);
     background:#222; color:#fff; padding:12px 18px; border-radius:12px; font-size:15px;
@@ -175,6 +180,7 @@
         <button class="big-btn btn-in" id="btn-in">出勤<small>会社に着いたら</small></button>
         <button class="big-btn btn-out" id="btn-out">退勤<small>帰るときに</small></button>
       </div>
+      <div id="gps-msg" class="gps-msg"></div>
     </div>
     <p class="muted" style="text-align:center;">押し間違えたときは、社長（管理者）に伝えてください</p>
   </section>
@@ -195,6 +201,15 @@
     </div>
 
     <div id="report-body"><p class="loading">読み込み中…</p></div>
+
+    <div class="card no-print" id="office-card" style="display:none;">
+      <p style="margin:0 0 4px; font-size:16px; font-weight:600;">📍 会社の場所（GPS）</p>
+      <p class="muted" style="margin:0 0 10px;" id="office-status">確認中…</p>
+      <button class="primary-btn" id="office-set" style="margin-top:0;">今いる場所を会社として登録</button>
+      <p class="muted" style="margin:8px 0 0;">※会社にいるときに押してください</p>
+      <div class="set-row"><span>押せる範囲</span><span>会社から <input type="number" id="office-radius" min="50" max="5000" step="50"> m</span></div>
+      <button class="sub-btn" id="office-radius-save">範囲を保存</button>
+    </div>
 
     <div class="card no-print">
       <details>
