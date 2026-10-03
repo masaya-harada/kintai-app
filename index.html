@@ -2,204 +2,228 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>勤怠報告</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>勤怠</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1D9E75">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="勤怠報告">
+<meta name="apple-mobile-web-app-title" content="勤怠">
 <style>
   :root{
-    --primary:#1D9E75;
-    --primary-dark:#0F6E56;
-    --bg:#F5F5F3;
-    --card:#FFFFFF;
-    --text:#222220;
-    --text-sub:#6B6A66;
-    --border:#E3E1DC;
-    --warn:#EF9F27;
-    --danger:#E24B4A;
+    --primary:#1D9E75; --primary-dark:#0F6E56; --primary-soft:#E1F5EE;
+    --out:#3D5A80; --out-soft:#E6ECF4;
+    --bg:#F5F5F3; --card:#FFFFFF; --text:#222220; --sub:#6B6A66; --line:#E3E1DC;
+    --warn:#B5651D; --warn-soft:#FBEEDD; --danger:#C53A39; --danger-soft:#FBE7E6;
   }
-  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;}
   body{
-    margin:0; font-family:-apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+    font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif;
     background:var(--bg); color:var(--text);
-    padding-bottom: 80px;
+    padding-bottom:calc(76px + env(safe-area-inset-bottom));
   }
   header{
-    background:var(--primary); color:#fff; padding:16px 20px;
+    background:var(--primary); color:#fff; padding:14px 16px;
+    padding-top:calc(14px + env(safe-area-inset-top));
     position:sticky; top:0; z-index:10;
     display:flex; align-items:center; justify-content:space-between;
   }
-  header h1{margin:0; font-size:18px; font-weight:500;}
-  .container{padding:16px; max-width:480px; margin:0 auto;}
-  .card{
-    background:var(--card); border-radius:14px; border:1px solid var(--border);
-    padding:16px; margin-bottom:16px;
+  header h1{margin:0; font-size:18px; font-weight:600; letter-spacing:.05em;}
+  #demo-badge{font-size:11px; background:#fff3; padding:3px 8px; border-radius:20px; display:none;}
+  .wrap{padding:16px; max-width:560px; margin:0 auto;}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:16px; padding:18px; margin-bottom:14px;}
+  .muted{color:var(--sub); font-size:13px;}
+  button{font-family:inherit;}
+
+  /* ---------- 打刻 ---------- */
+  .clock-date{text-align:center; font-size:15px; color:var(--sub); margin:4px 0 0;}
+  .clock{text-align:center; font-size:56px; font-weight:600; letter-spacing:.02em; margin:2px 0 6px; font-variant-numeric:tabular-nums;}
+  .who{display:flex; align-items:center; justify-content:center; gap:10px; font-size:18px; font-weight:600;}
+  .who button{border:1px solid var(--line); background:#fff; color:var(--sub); border-radius:20px; padding:4px 12px; font-size:13px;}
+  .today-status{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:16px;}
+  .ts-box{border-radius:12px; padding:10px; text-align:center; background:var(--bg);}
+  .ts-box .lbl{font-size:12px; color:var(--sub);}
+  .ts-box .val{font-size:22px; font-weight:600; font-variant-numeric:tabular-nums; margin-top:2px;}
+  .ts-box.done-in{background:var(--primary-soft); color:var(--primary-dark);}
+  .ts-box.done-out{background:var(--out-soft); color:var(--out);}
+  .big-btns{display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:16px;}
+  .big-btn{
+    border:none; border-radius:18px; color:#fff; font-size:24px; font-weight:700; letter-spacing:.1em;
+    padding:34px 0; cursor:pointer; transition:transform .08s, opacity .2s;
+    box-shadow:0 3px 0 rgba(0,0,0,.15);
   }
-  label{font-size:13px; color:var(--text-sub); display:block; margin-bottom:6px;}
-  input[type="text"]{
-    width:100%; padding:12px; border-radius:10px; border:1px solid var(--border);
-    font-size:16px; background:#fafaf9; color:var(--text);
-  }
-  input[type="text"]:focus{outline:2px solid var(--primary); border-color:var(--primary);}
-  .row-between{display:flex; justify-content:space-between; align-items:baseline; margin:12px 0;}
-  .today-date{font-size:15px; font-weight:500;}
-  .btn-grid{display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:16px;}
-  .action-btn{
-    display:flex; flex-direction:column; align-items:center; gap:8px;
-    padding:20px 0; border-radius:12px; border:none; font-size:16px; font-weight:500;
-    color:#fff; cursor:pointer; transition:transform .1s;
-  }
-  .action-btn:active{transform:scale(0.97);}
+  .big-btn:active{transform:translateY(2px); box-shadow:0 1px 0 rgba(0,0,0,.15);}
+  .big-btn:disabled{opacity:.5;}
   .btn-in{background:var(--primary);}
-  .btn-out{background:var(--text-sub);}
-  .icon{font-size:28px; line-height:1;}
-  #status-msg{font-size:13px; min-height:18px; margin-top:12px; text-align:center;}
-  .status-ok{color:var(--primary-dark);}
-  .status-err{color:var(--danger);}
+  .btn-out{background:var(--out);}
+  .big-btn small{display:block; font-size:12px; font-weight:400; letter-spacing:0; opacity:.85; margin-top:4px;}
 
-  .section-title{font-size:13px; color:var(--text-sub); margin:0 0 10px;}
-  .record-item{
-    display:flex; align-items:center; gap:12px; background:#fafaf9;
-    border-radius:10px; padding:10px 12px; margin-bottom:8px; border:1px solid var(--border);
+  .name-input{width:100%; font-size:18px; padding:14px; border:1px solid var(--line); border-radius:12px; background:#fafaf9;}
+  .name-input:focus{outline:2px solid var(--primary); border-color:var(--primary);}
+  .primary-btn{width:100%; margin-top:12px; border:none; border-radius:12px; background:var(--primary); color:#fff; font-size:17px; font-weight:600; padding:14px;}
+
+  #toast{
+    position:fixed; left:50%; bottom:calc(92px + env(safe-area-inset-bottom)); transform:translateX(-50%) translateY(20px);
+    background:#222; color:#fff; padding:12px 18px; border-radius:12px; font-size:15px;
+    opacity:0; pointer-events:none; transition:all .25s; z-index:30; max-width:90vw; text-align:center;
   }
-  .record-icon{font-size:20px;}
-  .record-item .rtext{flex:1;}
-  .record-item .rtitle{margin:0; font-size:14px; font-weight:500;}
-  .record-item .rsite{margin:0; font-size:12px; color:var(--text-sub);}
-  .empty{font-size:13px; color:#aaa; text-align:center; padding:8px 0;}
+  #toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+  #toast.err{background:var(--danger);}
 
-  /* Tab bar */
+  /* ---------- 集計 ---------- */
+  .month-nav{display:flex; align-items:center; justify-content:space-between;}
+  .month-nav button{width:44px; height:44px; border-radius:12px; border:1px solid var(--line); background:#fff; font-size:22px; color:var(--text);}
+  .month-nav .m{font-size:20px; font-weight:700;}
+  select{width:100%; margin-top:12px; font-size:16px; padding:12px; border-radius:12px; border:1px solid var(--line); background:#fafaf9; color:var(--text);}
+  .out-btns{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:12px;}
+  .out-btns button{border:1px solid var(--line); background:#fff; border-radius:12px; padding:12px 6px; font-size:14px; font-weight:600; color:var(--text);}
+  .out-btns button.pdf{background:var(--primary); border-color:var(--primary); color:#fff;}
+
+  .person{margin-bottom:14px;}
+  .person h2{margin:0 0 2px; font-size:18px;}
+  .person .period{font-size:12px; color:var(--sub); margin-bottom:12px;}
+  .stats{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:14px;}
+  .stat{background:var(--bg); border-radius:12px; padding:10px 6px; text-align:center;}
+  .stat .lbl{font-size:12px; color:var(--sub);}
+  .stat .val{font-size:22px; font-weight:700; font-variant-numeric:tabular-nums; margin-top:2px;}
+  .stat .val span{font-size:12px; font-weight:400; margin-left:1px;}
+  .stat.ot .val{color:var(--warn);}
+  .alert{background:var(--danger-soft); color:var(--danger); border-radius:10px; padding:8px 12px; font-size:13px; margin-bottom:12px;}
+
+  table{width:100%; border-collapse:collapse; font-size:14px; font-variant-numeric:tabular-nums;}
+  th{font-size:11px; color:var(--sub); font-weight:600; text-align:center; padding:6px 2px; border-bottom:2px solid var(--line);}
+  td{text-align:center; padding:8px 2px; border-bottom:1px solid var(--line);}
+  td.d{text-align:left; padding-left:4px; white-space:nowrap;}
+  tr.sat td.d{color:#2F6DB5;} tr.sun td.d{color:var(--danger);}
+  tr.off td{color:#bbb;}
+  td.ot-cell{color:var(--warn); font-weight:600;}
+  td.miss{color:var(--danger); font-weight:600;}
+  tfoot td{font-weight:700; border-top:2px solid var(--line); border-bottom:none;}
+
+  .overview td, .overview th{padding:9px 4px;}
+  .overview td.n{text-align:left; font-weight:600;}
+
+  details summary{cursor:pointer; font-size:14px; color:var(--sub);}
+  .set-row{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:12px; font-size:15px;}
+  .set-row input{width:90px; font-size:16px; padding:8px; border-radius:10px; border:1px solid var(--line); text-align:center;}
+  .loading{text-align:center; color:var(--sub); padding:30px 0;}
+
+  /* ---------- 下のタブ ---------- */
   .tabbar{
-    position:fixed; bottom:0; left:0; right:0; background:var(--card);
-    border-top:1px solid var(--border); display:flex; z-index:10;
-    padding-bottom: env(safe-area-inset-bottom);
+    position:fixed; left:0; right:0; bottom:0; background:#fff; border-top:1px solid var(--line);
+    display:flex; z-index:20; padding-bottom:env(safe-area-inset-bottom);
   }
-  .tab-btn{
-    flex:1; border:none; background:none; padding:10px 0 8px; font-size:12px;
-    color:var(--text-sub); display:flex; flex-direction:column; align-items:center; gap:4px;
-  }
-  .tab-btn.active{color:var(--primary);}
-  .tab-btn .icon{font-size:22px;}
+  .tab{flex:1; border:none; background:none; padding:10px 0 8px; font-size:13px; color:var(--sub); display:flex; flex-direction:column; align-items:center; gap:3px;}
+  .tab .ic{font-size:22px; line-height:1;}
+  .tab.active{color:var(--primary); font-weight:700;}
 
-  /* Calendar */
-  .cal-header{display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;}
-  .cal-header button{
-    background:none; border:1px solid var(--border); border-radius:8px;
-    width:36px; height:36px; font-size:18px; color:var(--text);
-  }
-  .cal-month{font-size:16px; font-weight:500;}
-  .cal-grid{display:grid; grid-template-columns:repeat(7,1fr); gap:4px; text-align:center; font-size:13px;}
-  .cal-dow{color:var(--text-sub); padding:6px 0; font-size:12px;}
-  .cal-day{
-    padding:8px 0; border-radius:8px; cursor:pointer; position:relative;
-    border:1px solid transparent;
-  }
-  .cal-day.today{border-color:var(--primary);}
-  .cal-day.done{background:#E1F5EE; color:#085041;}
-  .cal-day.partial{background:#FAEEDA; color:#633806;}
-  .cal-day.empty-day{visibility:hidden;}
-  .day-detail{margin-top:16px;}
-  .day-detail-title{font-size:14px; font-weight:500; margin:0 0 8px;}
+  .print-only{display:none;}
 
-  /* legend */
-  .legend{display:flex; gap:16px; font-size:12px; color:var(--text-sub); margin-top:12px; flex-wrap:wrap;}
-  .legend span{display:inline-flex; align-items:center; gap:6px;}
-  .dot{width:10px; height:10px; border-radius:3px; display:inline-block;}
-  .dot-done{background:#9FE1CB;}
-  .dot-partial{background:#FAC775;}
+  /* ---------- 印刷・PDF ---------- */
+  @media print{
+    @page{size:A4 portrait; margin:12mm;}
+    body{background:#fff; padding:0; font-size:11pt;}
+    header,.tabbar,#view-stamp,.no-print,#toast{display:none !important;}
+    #view-report{display:block !important;}
+    .wrap{max-width:none; padding:0;}
+    .card{border:none; padding:0; margin:0 0 8mm; border-radius:0;}
+    .print-only{display:block;}
+    .person{break-after:page; page-break-after:always;}
+    .person:last-child{break-after:auto; page-break-after:auto;}
+    .stats{grid-template-columns:repeat(3,1fr);}
+    .stat{border:1px solid #ccc; background:#fff;}
+    table{font-size:9.5pt;}
+    td{padding:3.2px 2px;}
+    th,td{border-bottom:1px solid #ccc;}
+    tr{break-inside:avoid;}
+    *{-webkit-print-color-adjust:exact; print-color-adjust:exact;}
+  }
 </style>
 </head>
 <body>
 
 <header>
-  <h1>勤怠報告</h1>
-  <span id="header-date" style="font-size:12px; opacity:0.9;"></span>
+  <h1>勤怠</h1>
+  <span id="demo-badge">お試し表示</span>
 </header>
 
-<div class="container">
+<div class="wrap">
 
-  <!-- 記録画面 -->
-  <div id="view-record">
-    <div class="card">
-      <label for="worker-name">お名前（必須）</label>
-      <input type="text" id="worker-name" placeholder="例：山田太郎" autocomplete="off" style="margin-bottom:10px;">
-
-      <label for="site-name">現場名（必須）</label>
-      <input type="text" id="site-name" placeholder="例：名古屋市中区〇〇マンション" autocomplete="off">
-
-      <div class="row-between">
-        <span style="font-size:13px; color:var(--text-sub);">今日</span>
-        <span class="today-date" id="today-display"></span>
-      </div>
-
-      <div class="btn-grid">
-        <button class="action-btn btn-in" id="btn-checkin">
-          <span class="icon">↗</span>
-          出社
-        </button>
-        <button class="action-btn btn-out" id="btn-checkout">
-          <span class="icon">↘</span>
-          退社
-        </button>
-      </div>
-      <div id="status-msg"></div>
+  <!-- ===== 打刻 ===== -->
+  <section id="view-stamp">
+    <div class="card" id="name-card" style="display:none;">
+      <p style="margin:0 0 10px; font-size:16px; font-weight:600;">はじめにお名前を入れてください</p>
+      <p class="muted" style="margin:0 0 12px;">次からは自動で入ります。フルネームがおすすめです。</p>
+      <input class="name-input" id="name-input" list="name-list" placeholder="例：山田 太郎" autocomplete="off">
+      <datalist id="name-list"></datalist>
+      <button class="primary-btn" id="name-save">決定</button>
     </div>
 
-    <div class="card">
-      <p class="section-title">本日の記録</p>
-      <div id="today-records"></div>
-    </div>
-  </div>
+    <div class="card" id="stamp-card" style="display:none;">
+      <p class="clock-date" id="clock-date"></p>
+      <p class="clock" id="clock">--:--</p>
+      <div class="who"><span id="who-name"></span><span style="font-weight:400;">さん</span><button id="name-change">変更</button></div>
 
-  <!-- カレンダー画面 -->
-  <div id="view-calendar" style="display:none;">
-    <div class="card">
-      <div class="cal-header">
-        <button id="prev-month">‹</button>
-        <span class="cal-month" id="month-label"></span>
-        <button id="next-month">›</button>
+      <div class="today-status">
+        <div class="ts-box" id="ts-in"><div class="lbl">今日の出勤</div><div class="val" id="ts-in-val">--:--</div></div>
+        <div class="ts-box" id="ts-out"><div class="lbl">今日の退勤</div><div class="val" id="ts-out-val">--:--</div></div>
       </div>
-      <div class="cal-grid" id="cal-grid"></div>
-      <div class="legend">
-        <span><i class="dot dot-done"></i>出社・退社済み</span>
-        <span><i class="dot dot-partial"></i>出社のみ</span>
-      </div>
-      <div class="day-detail" id="day-detail"></div>
-    </div>
-  </div>
 
-  <!-- 履歴一覧 -->
-  <div id="view-history" style="display:none;">
-    <div class="card">
-      <p class="section-title">全履歴（新しい順）</p>
-      <div id="history-list"></div>
+      <div class="big-btns">
+        <button class="big-btn btn-in" id="btn-in">出勤<small>会社に着いたら</small></button>
+        <button class="big-btn btn-out" id="btn-out">退勤<small>帰るときに</small></button>
+      </div>
     </div>
-  </div>
+    <p class="muted" style="text-align:center;">押し間違えたときは、社長（管理者）に伝えてください</p>
+  </section>
+
+  <!-- ===== 集計 ===== -->
+  <section id="view-report" style="display:none;">
+    <div class="card no-print">
+      <div class="month-nav">
+        <button id="m-prev" aria-label="前の月">‹</button>
+        <span class="m" id="m-label"></span>
+        <button id="m-next" aria-label="次の月">›</button>
+      </div>
+      <select id="person-select"></select>
+      <div class="out-btns">
+        <button class="pdf" id="btn-pdf">PDFで保存・印刷</button>
+        <button id="btn-csv">Excel用ファイル</button>
+      </div>
+    </div>
+
+    <div id="report-body"><p class="loading">読み込み中…</p></div>
+
+    <div class="card no-print">
+      <details>
+        <summary>計算のルール（変更できます）</summary>
+        <div class="set-row"><span>1日の所定労働時間</span><span><input type="number" id="set-std" min="1" max="12" step="0.5"> 時間</span></div>
+        <div class="set-row"><span>休憩時間</span><span><input type="number" id="set-break" min="0" max="180" step="5"> 分</span></div>
+        <div class="set-row"><span>休憩を引くのは</span><span><input type="number" id="set-break-over" min="0" max="12" step="0.5"> 時間以上</span></div>
+        <p class="muted" style="margin:12px 0 0; line-height:1.6;">
+          実働 ＝ 退勤 − 出勤 − 休憩<br>
+          残業 ＝ 実働が所定時間をこえた分（1日ごと）<br>
+          ※同じ日に何回か押したときは「最初の出勤」と「最後の退勤」を使います
+        </p>
+      </details>
+    </div>
+  </section>
 
 </div>
 
 <nav class="tabbar">
-  <button class="tab-btn active" data-tab="record">
-    <span class="icon">⏱</span>記録
-  </button>
-  <button class="tab-btn" data-tab="calendar">
-    <span class="icon">📅</span>カレンダー
-  </button>
-  <button class="tab-btn" data-tab="history">
-    <span class="icon">📋</span>履歴
-  </button>
+  <button class="tab active" data-tab="stamp"><span class="ic">⏱</span>打刻</button>
+  <button class="tab" data-tab="report"><span class="ic">📊</span>集計・PDF</button>
 </nav>
+
+<div id="toast"></div>
 
 <script src="app.js"></script>
 <script>
 if('serviceWorker' in navigator){
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js').catch(()=>{});
-  });
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(()=>{}));
 }
 </script>
 </body>

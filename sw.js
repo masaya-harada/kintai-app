@@ -1,4 +1,5 @@
-const CACHE_NAME = 'kintai-v1';
+// ネット優先（つながらない時だけ保存済みの画面を出す）
+const CACHE_NAME = 'kintai-v2';
 const FILES_TO_CACHE = [
   './index.html',
   './app.js',
@@ -8,9 +9,7 @@ const FILES_TO_CACHE = [
 ];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(FILES_TO_CACHE))
-  );
+  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(FILES_TO_CACHE)));
   self.skipWaiting();
 });
 
@@ -24,15 +23,16 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  const url = new URL(event.request.url);
+  // Googleとの通信など、外部へのアクセスには手を出さない
+  if (event.request.method !== 'GET' || url.origin !== self.location.origin) return;
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      return cached || fetch(event.request).then((response) => {
-        if (event.request.method === 'GET' && response.status === 200) {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-        }
-        return response;
-      }).catch(() => cached);
-    })
+    fetch(event.request).then((response) => {
+      if (response.status === 200) {
+        const clone = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+      }
+      return response;
+    }).catch(() => caches.match(event.request))
   );
 });

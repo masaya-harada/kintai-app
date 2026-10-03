@@ -1,7 +1,7 @@
 {
-  "name": "勤怠報告",
-  "short_name": "勤怠報告",
-  "description": "現場名と出社・退社時刻を記録する勤怠管理アプリ",
+  "name": "勤怠",
+  "short_name": "勤怠",
+  "description": "スマホで出勤・退勤を押すだけの勤怠アプリ",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#F5F5F3",
