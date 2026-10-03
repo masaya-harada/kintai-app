@@ -1,5 +1,5 @@
 // ネット優先（つながらない時だけ保存済みの画面を出す）
-const CACHE_NAME = 'kintai-v4';
+const CACHE_NAME = 'kintai-v5';
 const FILES_TO_CACHE = [
   './index.html',
   './app.js',

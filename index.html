@@ -213,14 +213,13 @@
 
     <div class="card no-print">
       <details>
-        <summary>計算のルール（変更できます）</summary>
-        <div class="set-row"><span>1日の所定労働時間</span><span><input type="number" id="set-std" min="1" max="12" step="0.5"> 時間</span></div>
-        <div class="set-row"><span>休憩時間</span><span><input type="number" id="set-break" min="0" max="180" step="5"> 分</span></div>
-        <div class="set-row"><span>休憩を引くのは</span><span><input type="number" id="set-break-over" min="0" max="12" step="0.5"> 時間以上</span></div>
-        <p class="muted" style="margin:12px 0 0; line-height:1.6;">
+        <summary>計算のルール</summary>
+        <p class="muted" style="margin:12px 0 0; line-height:1.8;">
+          休憩 ＝ 12:00〜13:00（この時間帯に働いていた分だけ引きます）<br>
           実働 ＝ 退勤 − 出勤 − 休憩<br>
-          残業 ＝ 実働が所定時間をこえた分（1日ごと）<br>
-          ※同じ日に何回か押したときは「最初の出勤」と「最後の退勤」を使います
+          残業 ＝ 実働が1日8時間をこえた分<br>
+          ※同じ日に何回か押したときは「最初の出勤」と「最後の退勤」を使います<br>
+          ※夜勤で日をまたいだときは、翌日の昼前の退勤を前日の退勤として扱います
         </p>
       </details>
     </div>

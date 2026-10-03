@@ -2,12 +2,12 @@
 const GAS_URL = 'https://script.google.com/macros/s/AKfycby9NmGe8drC-3jPEkTlCTjoF4JYddKWiW3W_x2THYoxjSVcztaA9hgZYdPIDm5y37zIpA/exec';
 
 const NAME_KEY = 'kintai-name';
-const SETTINGS_KEY = 'kintai-settings';
 const ADMIN_PIN = '9127'; // Google側の合言葉（画面では入力しない）
 const DEMO = new URLSearchParams(location.search).has('demo');
 const WEEK = ['日','月','火','水','木','金','土'];
 
-let settings = { std: 8, breakMin: 60, breakOver: 6 };
+const settings = { std: 8 };        // 1日の所定労働時間（これを超えた分が残業）
+const BREAK_START = 12 * 60, BREAK_END = 13 * 60; // 休憩 12:00〜13:00
 let reportMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 let monthRecords = [];
 
@@ -237,9 +237,13 @@ function summarize(recs, name, monthDate) {
     }
     let work = null, ot = null, miss = false;
     if (inT || outT) workDays++;
-    const span = inT && outT ? (overnight ? 24 * 60 : 0) + toMin(outT) - toMin(inT) : 0;
+    const start = inT ? toMin(inT) : 0;
+    const end = inT && outT ? (overnight ? 24 * 60 : 0) + toMin(outT) : 0;
+    const span = end - start;
     if (span > 0) {
-      const brk = span >= settings.breakOver * 60 ? settings.breakMin : 0;
+      // 休憩は12:00〜13:00に固定。その時間帯に働いていた分だけ引く（日をまたいだ場合は翌日の昼も見る）
+      let brk = 0;
+      [0, 24 * 60].forEach((off) => { brk += Math.max(0, Math.min(end, BREAK_END + off) - Math.max(start, BREAK_START + off)); });
       work = Math.max(0, span - brk);
       ot = Math.max(0, work - Math.round(settings.std * 60));
       totalWork += work; totalOt += ot;
@@ -275,7 +279,7 @@ function personHtml(s, monthDate) {
     '<table><thead><tr><th style="text-align:left;">日付</th><th>出勤</th><th>退勤</th><th>実働</th><th>残業</th></tr></thead>' +
     '<tbody>' + body + '</tbody>' +
     '<tfoot><tr><td class="d">合計 ' + s.workDays + '日</td><td></td><td></td><td>' + hm(s.totalWork) + '</td><td class="ot-cell">' + hm(s.totalOt) + '</td></tr></tfoot></table>' +
-    '<p class="print-only" style="font-size:8pt; color:#888; margin-top:6px;">所定' + settings.std + '時間／休憩' + settings.breakMin + '分（' + settings.breakOver + '時間以上の日）で計算　' +
+    '<p class="print-only" style="font-size:8pt; color:#888; margin-top:6px;">所定' + settings.std + '時間／休憩12:00〜13:00で計算　' +
       '時間表記「8:30」＝8時間30分（' + hours(510) + '時間）</p>' +
     '</div>';
 }
@@ -386,18 +390,6 @@ function downloadCsv() {
   document.body.appendChild(a); a.click(); a.remove();
 }
 
-// ---------- 設定 ----------
-function loadSettings() {
-  try { Object.assign(settings, JSON.parse(lsGet(SETTINGS_KEY) || '{}')); } catch (e) {}
-  $('set-std').value = settings.std; $('set-break').value = settings.breakMin; $('set-break-over').value = settings.breakOver;
-}
-function saveSettings() {
-  const num = (id, def) => { const v = parseFloat($(id).value); return isNaN(v) ? def : v; };
-  settings = { std: num('set-std', 8), breakMin: num('set-break', 60), breakOver: num('set-break-over', 6) };
-  lsSet(SETTINGS_KEY, JSON.stringify(settings));
-  renderReport();
-}
-
 // ---------- タブ ----------
 function switchTab(tab) {
   $('view-stamp').style.display = tab === 'stamp' ? 'block' : 'none';
@@ -429,10 +421,8 @@ $('btn-pdf').addEventListener('click', () => window.print());
 $('btn-csv').addEventListener('click', downloadCsv);
 $('office-set').addEventListener('click', () => saveOffice(true));
 $('office-radius-save').addEventListener('click', () => saveOffice(false));
-['set-std', 'set-break', 'set-break-over'].forEach((id) => $(id).addEventListener('change', saveSettings));
 
 if (DEMO) { $('demo-badge').style.display = 'inline-block'; if (!lsGet(NAME_KEY)) lsSet(NAME_KEY, '山田 太郎'); }
-loadSettings();
 tickClock(); setInterval(tickClock, 1000);
 showStampScreen();
 if (location.hash === '#report') switchTab('report');
