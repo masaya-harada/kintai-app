@@ -1,9 +1,9 @@
-﻿// ★Google Apps ScriptのURL（スプレッドシートとつながる窓口）
+// ★Google Apps ScriptのURL（スプレッドシートとつながる窓口）
 const GAS_URL = 'https://script.google.com/macros/s/AKfycby9NmGe8drC-3jPEkTlCTjoF4JYddKWiW3W_x2THYoxjSVcztaA9hgZYdPIDm5y37zIpA/exec';
 
 const NAME_KEY = 'kintai-name';
 const SETTINGS_KEY = 'kintai-settings';
-const PIN_KEY = 'kintai-pin';
+const ADMIN_PIN = '9127'; // Google側の合言葉（画面では入力しない）
 const DEMO = new URLSearchParams(location.search).has('demo');
 const WEEK = ['日','月','火','水','木','金','土'];
 
@@ -90,7 +90,7 @@ async function fetchMonth(mk) {
     demoData = demoData || makeDemoData();
     return demoData.filter((r) => r.date.startsWith(mk));
   }
-  return getJson({ pin: lsGet(PIN_KEY) || '', month: mk });
+  return getJson({ pin: ADMIN_PIN, month: mk });
 }
 
 // 打刻画面用：本人の今日の分だけ
@@ -281,39 +281,15 @@ function renderReport() {
 
 async function loadReport() {
   $('m-label').textContent = reportMonth.getFullYear() + '年' + (reportMonth.getMonth() + 1) + '月';
-  if (!DEMO && !lsGet(PIN_KEY)) return showPinForm(false);
   $('report-body').innerHTML = '<p class="loading">読み込み中…</p>';
   try {
     monthRecords = await fetchMonth(monthKey(reportMonth));
     renderReport();
     loadOffice();
   } catch (e) {
-    if (e.message === 'pin') { lsSet(PIN_KEY, ''); return showPinForm(true); }
     $('report-body').innerHTML = '<div class="card"><p class="loading">' +
       (e.message === 'old-server' ? 'スプレッドシート側の更新がまだです（設定手順をご確認ください）' : '読み込めませんでした。電波を確認してください') + '</p></div>';
   }
-}
-
-// 暗証番号の入力（一度入れれば、その端末では次から聞かれない）
-function showPinForm(wrong) {
-  monthRecords = [];
-  $('office-card').style.display = 'none';
-  $('person-select').innerHTML = '<option value="">全員</option>';
-  $('report-body').innerHTML = '<div class="card">' +
-    '<p style="margin:0 0 6px; font-size:16px; font-weight:600;">暗証番号を入れてください</p>' +
-    '<p class="muted" style="margin:0 0 12px;">集計は管理者だけが見られます。この端末では次から入力不要です。</p>' +
-    (wrong ? '<div class="alert">暗証番号が違います</div>' : '') +
-    '<input class="name-input" id="pin-input" type="password" inputmode="numeric" autocomplete="off" placeholder="4けたの数字" style="text-align:center; letter-spacing:.3em;">' +
-    '<button class="primary-btn" id="pin-ok">開く</button></div>';
-  const go = () => {
-    const v = $('pin-input').value.trim();
-    if (!v) return;
-    lsSet(PIN_KEY, v);
-    loadReport();
-  };
-  $('pin-ok').addEventListener('click', go);
-  $('pin-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
-  $('pin-input').focus();
 }
 
 // ---------- 会社の場所（管理者だけ） ----------
@@ -332,14 +308,14 @@ function showOffice(o) {
 async function loadOffice() {
   if (DEMO) return showOffice(null);
   try {
-    await getJson({ pin: lsGet(PIN_KEY) || '', action: 'office' });
+    await getJson({ pin: ADMIN_PIN, action: 'office' });
     showOffice(getJson.last.office);
   } catch (e) {}
 }
 
 async function saveOffice(withPlace) {
   const radius = Math.round(parseFloat($('office-radius').value) || 300);
-  const body = { action: 'setOffice', pin: lsGet(PIN_KEY) || '', radius };
+  const body = { action: 'setOffice', pin: ADMIN_PIN, radius };
   const btn = withPlace ? $('office-set') : $('office-radius-save');
   btn.disabled = true;
   try {
